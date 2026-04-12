@@ -74,7 +74,8 @@ export const useProjects = () => {
     },
 
     byAuthor: (input: string) => {
-      const q = `@${input.toLocaleLowerCase()}`;
+      const normalized = input.trim().toLocaleLowerCase().replace(/^@/, "");
+      const q = `@${normalized}`;
       return data.filter((p) => p.repoAuthor.toLocaleLowerCase().includes(q));
     },
 
