@@ -6,6 +6,10 @@ on:
     - cron: "0 2 * * 1"
   workflow_dispatch: {}
 
+concurrency:
+  group: enrich-projects
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write
@@ -15,9 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -29,16 +33,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/enrich-projects.mjs
 
-      - name: Check for changes
-        id: diff
-        run: |
-          git diff --quiet data/projects.enriched.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      - name: Open PR with enriched data
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+        with:
+          commit-message: "chore: update enriched project data"
+          branch: chore/enrich-projects
+          base: main
+          delete-branch: true
+          add-paths: data/projects.enriched.json
+          title: "chore: update enriched project data"
+          body: |
+            Weekly automated update of `data/projects.enriched.json`.
 
-      - name: Commit enriched data
-        if: steps.diff.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/projects.enriched.json
-          git commit -m "chore: update enriched project data [skip ci]"
-          git push
+            Pulls latest star counts, last-push dates, languages, and computed
+            statuses from the GitHub API for all tracked projects.
+
+            This PR was opened automatically and is safe to merge.
+          labels: automated

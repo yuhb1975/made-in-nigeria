@@ -8,17 +8,22 @@ on:
       - "data/projects.json"
   workflow_dispatch: {}
 
+concurrency:
+  group: generate-readme
+  cancel-in-progress: true
+
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   generate:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -28,16 +33,17 @@ jobs:
       - name: Regenerate README
         run: node scripts/generate-readme.mjs
 
-      - name: Check for changes
-        id: diff
-        run: |
-          git diff --quiet README.MD && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      - name: Open PR with updated README
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+        with:
+          commit-message: "chore: regenerate README from projects.json"
+          branch: chore/regenerate-readme
+          base: main
+          delete-branch: true
+          add-paths: README.MD
+          title: "chore: regenerate README from projects.json"
+          body: |
+            Automated README update triggered by changes to `data/projects.json`.
 
-      - name: Commit README
-        if: steps.diff.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.MD
-          git commit -m "chore: regenerate README from projects.json [skip ci]"
-          git push
+            This PR was opened automatically and is safe to merge.
+          labels: automated
