@@ -15,6 +15,7 @@ const TODAY = new Date().toISOString().split("T")[0];
 const INACTIVE_DAYS = 365 * 2;
 const STALE_DAYS = 180;
 const CONCURRENCY = 5;
+const MAX_GITHUB_RETRIES = 5;
 
 const GITHUB_RE = /github\.com\/([^/]+\/[^/?#]+)/;
 
@@ -22,19 +23,53 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+async function getRateLimitRetryMs(res) {
+  const retryAfter = res.headers.get("retry-after");
+  if (retryAfter) {
+    const retryAfterSeconds = parseInt(retryAfter, 10);
+    if (!Number.isNaN(retryAfterSeconds) && retryAfterSeconds >= 0) {
+      return retryAfterSeconds * 1000;
+    }
+  }
+
+  const remaining = res.headers.get("x-ratelimit-remaining");
+  const reset = res.headers.get("x-ratelimit-reset");
+  if (remaining === "0" || reset) {
+    const resetSeconds = parseInt(reset, 10);
+    if (!Number.isNaN(resetSeconds)) {
+      return Math.max(0, resetSeconds * 1000 - Date.now()) + 1000;
+    }
+    return 60_000;
+  }
+
+  try {
+    const body = await res.clone().json();
+    const message = typeof body?.message === "string" ? body.message.toLowerCase() : "";
+    if (message.includes("rate limit")) {
+      return 60_000;
+    }
+  } catch {
+    // Ignore non-JSON response bodies when determining rate limiting.
+  }
+
+  return null;
+}
+
 async function fetchGitHub(path) {
   const headers = { Accept: "application/vnd.github+json" };
   if (GITHUB_TOKEN) headers["Authorization"] = `Bearer ${GITHUB_TOKEN}`;
 
-  while (true) {
+  for (let attempt = 0; attempt <= MAX_GITHUB_RETRIES; attempt++) {
     const res = await fetch(`https://api.github.com${path}`, { headers });
 
     if (res.status === 403 || res.status === 429) {
-      const reset = res.headers.get("x-ratelimit-reset");
-      // GitHub secondary rate limit: must back off until the reset window clears
-      const waitMs = reset
-        ? Math.max(0, parseInt(reset) * 1000 - Date.now()) + 1000
-        : 60_000;
+      const waitMs = await getRateLimitRetryMs(res);
+      if (waitMs == null) {
+        throw new Error(`GitHub API ${res.status} for ${path}`);
+      }
+      if (attempt === MAX_GITHUB_RETRIES) {
+        throw new Error(`GitHub API ${res.status} for ${path} after ${MAX_GITHUB_RETRIES + 1} attempts`);
+      }
       console.warn(`  Rate limited — waiting ${Math.round(waitMs / 1000)}s…`);
       await sleep(waitMs);
       continue;
