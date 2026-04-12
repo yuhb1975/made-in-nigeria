@@ -1,36 +1,77 @@
-# Made in Nigeria Github collection Guidelines
+# Made in Nigeria — Contribution Guide
 
-## Contributing a Project
+## What qualifies a project for inclusion?
+To be included in the Made in Nigeria list, a project must meet the following criteria:
 
-To add a new project to the collection, please ensure they meet the following requirements arranged in order of importance
-
-* The project must be **made in Nigeria** as the name implies :grin:.
-
-* The project must be open source.
-
-* The project must have global use - meaning it's not made just for use by Nigerians and there really is no geographical limitation for anyone that may be interested in using this project.
-
-* The project should have at least 20 stars. This is to serve as a way to determine that people actually have a use for the project and it does what it says it does. [ Stars likely to go up as time goes on :smiley: ].
-
-* The project should not be a list of some sort.
-
-* Ensure to provide a social media url of the creator of the project outside GitHub.
-
-* Try to add the project to it's appropriate alphabetical location.
-
-* You might want to include the **made in Nigeria** badge to your project. Place the following code in your **README** file:
-`[![Made in Nigeria](https://img.shields.io/badge/made%20in-nigeria-008751.svg?style=flat-square)](https://github.com/acekyd/made-in-nigeria)`
-
-More requirements may be added as time goes on.
+- **Made in Nigeria** — created or primarily maintained by a Nigerian developer.
+- **Open source** — publicly available source code.
+- **Global use** — not limited to a Nigerian audience or use case.
+- **At least 20 GitHub stars** — a signal that others find it useful.
+- **Not a list** — curated lists (alone) of links don't qualify.
+- Provide a social media or personal site link for the author(s) - outside GitHub is preferred.
 
 
-## Contributing to Repo showcase website
+## Adding a project
+Open `data/projects.json` and add a new entry anywhere in the array (it will be sorted alphabetically on merge):
 
-There is a webpage that has been developed by awesome members of the community used to view the contents of this repo in a very pleasing manner. If you'd like to contribute to this website, please try to follow these steps:
+```json
+{
+  "name": "Your Project Name",
+  "repoUrl": "https://github.com/your-username/your-repo",
+  "description": "One or two sentences describing what the project does.",
+  "authors": [
+    { "name": "@yourhandle", "link": "https://twitter.com/yourhandle" }
+  ]
+}
+```
 
-* If you are fixing a bug or adding a new feature, please create a branch for it.
+That's all. The automated pipeline will:
+- validate your entry on the PR
+- fetch real GitHub data (stars, last push, language) on the next weekly run
+- regenerate `README.MD` automatically after your PR is merged
 
-* Make Pull requests as descriptive as possible.
+### Multiple authors
 
-* Every other best practice recommended when contributing to a project.
+```json
+"authors": [
+  { "name": "@alice", "link": "https://twitter.com/alice" },
+  { "name": "@bob",   "link": "https://github.com/bob" }
+]
+```
 
+### Optional: manual status
+
+If you know a project has been deprecated or deleted, you can include:
+
+```json
+"manualStatus": "deprecated"
+```
+
+Valid values: `inactive`, `archived`, `deprecated`, `deleted`.
+Leave it out for active projects — the weekly enrichment job infers status automatically from GitHub activity.
+
+---
+
+## How status is tracked automatically
+
+A scheduled GitHub Action runs every Monday, queries the GitHub API for every project, and writes computed data to `data/projects.enriched.json`:
+
+| Condition | Computed status |
+|---|---|
+| GitHub repo is archived | `archived` |
+| No push in > 2 years | `inactive` |
+| No push in > 6 months | `stale` |
+| Active | `active` |
+| Non-GitHub or API error | `unknown` |
+
+`manualStatus` always overrides the computed status for `archived`, `deprecated`, and `deleted`.
+
+---
+
+## Contributing to the website
+
+- Create a branch for each bug fix or feature.
+- Make pull requests as descriptive as possible.
+- Run `npm run build` and check for errors before opening a PR.
+- Remove all `console.log` statements.
+- For UI changes, include screenshots or a short recording.
