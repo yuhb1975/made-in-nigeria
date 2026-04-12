@@ -10,6 +10,7 @@ import { readFileSync } from "fs";
 const VALID_MANUAL_STATUSES = new Set(["inactive", "archived", "deprecated", "deleted"]);
 const URL_RE = /^https?:\/\/.+/;
 const isBlankString = (v) => !v || typeof v !== "string" || v.trim() === "";
+const isNonNullObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
 let projects;
 try {
@@ -29,6 +30,12 @@ const seenUrls = new Map();
 
 for (let i = 0; i < projects.length; i++) {
   const p = projects[i];
+
+  if (!isNonNullObject(p)) {
+    errors.push(`[${i}]: project entry must be an object`);
+    continue;
+  }
+
   const label = `[${i}] "${p.name || "(no name)"}"`;
 
   if (isBlankString(p.name)) errors.push(`${label}: missing or empty "name"`);
@@ -47,6 +54,11 @@ for (let i = 0; i < projects.length; i++) {
     errors.push(`${label}: "authors" must be a non-empty array`);
   } else {
     for (const [j, author] of p.authors.entries()) {
+      if (!isNonNullObject(author)) {
+        errors.push(`${label}: authors[${j}] must be an object`);
+        continue;
+      }
+
       if (isBlankString(author.name)) errors.push(`${label}: authors[${j}] missing "name"`);
     }
   }
