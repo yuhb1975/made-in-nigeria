@@ -2,7 +2,8 @@
  * Reads data/projects.json, queries the GitHub API for each repo, computes
  * status, and writes data/projects.enriched.json.
  *
- * Requires GITHUB_TOKEN env variable for authenticated API access (5000 req/hr).
+ * Uses GITHUB_TOKEN env variable for authenticated API access when available.
+ * Rate limits depend on the token type; a PAT may be needed for higher throughput.
  * Usage: node scripts/enrich-projects.mjs
  */
 
