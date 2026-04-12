@@ -1,107 +1,91 @@
-import { marked } from "marked";
-import * as cheerio from "cheerio";
 import { cache } from "react";
+import projectsData from "../../data/projects.enriched.json";
 
-const getData = cache(async () => {
-  const res = await fetch(
-    "https://raw.githubusercontent.com/acekyd/made-in-nigeria/main/README.MD",
-    { next: { revalidate: false } }
-  );
+export type ProjectStatus =
+  | "active"
+  | "stale"
+  | "inactive"
+  | "archived"
+  | "deprecated"
+  | "deleted"
+  | "unknown";
 
-  if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
-    throw new Error("Failed to fetch data");
-  }
+export type ManualStatus = "inactive" | "archived" | "deprecated" | "deleted";
 
-  const markdownData = await res.text();
+export type Author = {
+  name: string;
+  link: string;
+};
 
-  // const markdownData = await fs.readFile(process.cwd() + '/README.MD', 'utf8');
-
-  const html = marked(markdownData);
-  const $ = cheerio.load(html); // load the html string into cheerio
-
-  // Select all <li> elements using jQuery-like syntax and extract their text
-  const liTextArray = $("li")
-    .map((index, element) => $(element).html())
-    .get();
-
-  // process the text to get the data you want
-  const repositories = convertToJSON(liTextArray);
-
-  return repositories;
-});
-
-function convertToJSON(repositories: string[]) {
-  return repositories.map((repository) => {
-    const $ = cheerio.load(repository);
-
-    // Extract text content and href from <a> element
-    const repoName = $("a").first().text();
-    const repoLink = $("a").first().attr("href");
-
-    // Status of the repo
-    const status = $("span").first().text();
-
-    const isInactive = status?.includes("Inactive");
-    const isArchived = status?.includes("Archived");
-
-    // @ts-ignore
-    let description = $("*").contents()[3].data; // I don't know why the fuck this works but if it's not broken, don't touch it.
-    const repoDescription = description.replace(/^ - /, "");
-    const repoAuthor = $("strong a").text();
-    const repoAuthorLink = $("strong a").attr("href");
-
-    // Create JSON object
-    return {
-      repoName,
-      repoLink,
-      repoDescription,
-      repoAuthor,
-      repoAuthorLink,
-      isInactive,
-      isArchived,
-    };
-  });
-}
-
-export const useProjects = async () => {
-  const data = await getData();
-
-  const filterProjects = () => {
-    return {
-      byName: (input: string) => {
-        return data.filter(
-          (projects) =>
-            projects.repoName
-              .toLocaleLowerCase()
-              .includes(input.toLocaleLowerCase()) ||
-            projects.repoName.toLocaleLowerCase() === input.toLocaleLowerCase()
-        );
-      },
-
-      byAuthor: (input: string) => {
-        return data.filter(
-          (projects) =>
-            projects.repoAuthor.toLocaleLowerCase() ===
-              `@${input.toLocaleLowerCase()}` ||
-            projects.repoAuthor
-              .toLocaleLowerCase()
-              .includes(`@${input.toLocaleLowerCase()}`)
-        );
-      },
-
-      byLetter: (input: string) => {
-        return data.filter((projects) =>
-          projects.repoName
-            .toLocaleLowerCase()
-            .startsWith(input.toLocaleLowerCase())
-        );
-      },
-    };
+export type Project = {
+  name: string;
+  repoUrl: string;
+  description: string;
+  authors: Author[];
+  manualStatus?: ManualStatus;
+  computed?: {
+    status: ProjectStatus;
+    stars: number | null;
+    lastPushed: string | null;
+    language: string | null;
+    checkedAt: string;
+    error?: string;
   };
+  // Legacy shape — keeps existing components working without changes
+  repoName: string;
+  repoLink: string;
+  repoDescription: string;
+  repoAuthor: string;
+  repoAuthorLink: string;
+  isInactive: boolean;
+  isArchived: boolean;
+};
+
+function normalizeProject(raw: (typeof projectsData)[number]): Project {
+  const primaryAuthor = raw.authors?.[0];
+  const status = raw.computed?.status as ProjectStatus;
 
   return {
-    projects: data,
-    filterProjects,
+    ...raw,
+    authors: (raw.authors ?? []) as Author[],
+    computed: raw.computed as Project["computed"],
+    manualStatus: raw.manualStatus as ManualStatus | undefined,
+    repoName: raw.name,
+    repoLink: raw.repoUrl,
+    repoDescription: raw.description,
+    repoAuthor: primaryAuthor?.name ?? "",
+    repoAuthorLink: primaryAuthor?.link ?? "",
+    isInactive: status === "inactive" || status === "stale",
+    isArchived: status === "archived",
   };
+}
+
+const getData = cache((): Project[] =>
+  (projectsData as (typeof projectsData)[number][]).map(normalizeProject)
+);
+
+export const useProjects = () => {
+  const data = getData();
+
+  const filterProjects = () => ({
+    byName: (input: string) => {
+      const q = input.toLocaleLowerCase();
+      return data.filter((p) => p.repoName.toLocaleLowerCase().includes(q));
+    },
+
+    byAuthor: (input: string) => {
+      const q = `@${input.toLocaleLowerCase()}`;
+      return data.filter((p) => p.repoAuthor.toLocaleLowerCase().includes(q));
+    },
+
+    byLetter: (input: string) => {
+      const q = input.toLocaleLowerCase();
+      return data.filter((p) => p.repoName.toLocaleLowerCase().startsWith(q));
+    },
+
+    byStatus: (status: ProjectStatus) =>
+      data.filter((p) => p.computed?.status === status),
+  });
+
+  return { projects: data, filterProjects };
 };
