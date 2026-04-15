@@ -6,5 +6,7 @@ export default async function HomePage() {
   const articles = await getArticles();
   const { projects } = await useProjects();
 
-  return <Home data={articles} projects={projects} />;
+  const activeProjects = projects.filter((p) => p.computed?.status === "active");
+
+  return <Home data={articles} activeProjects={activeProjects} />;
 }

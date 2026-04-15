@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Box,
   Text,
@@ -20,8 +20,23 @@ import { Splide, SplideSlide } from "@splidejs/react-splide";
 import "@splidejs/react-splide/css";
 import propTypes from "prop-types";
 
-export const Home = ({ data, projects }) => {
+function pickRandom(arr, count) {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+}
+
+export const Home = ({ data, activeProjects }) => {
   const splideRef = useRef();
+  // Server renders the first 6 deterministically; client randomizes after hydration.
+  const [featuredProjects, setFeaturedProjects] = useState(() => activeProjects.slice(0, 6));
+
+  useEffect(() => {
+    setFeaturedProjects(pickRandom(activeProjects, 6));
+  }, [activeProjects]);
 
   const handlePrevClick = () => {
     splideRef.current.splide.go("<");
@@ -57,11 +72,8 @@ export const Home = ({ data, projects }) => {
             my="1rem"
             maxWidth="1385px"
           >
-            {[25, 55, 70, 91, 154, 200].map((index) => (
-              <ProjectCard
-                key={projects[index].repoLink}
-                project={projects[index]}
-              />
+            {featuredProjects.map((project) => (
+              <ProjectCard key={project.repoLink} project={project} />
             ))}
           </SimpleGrid>
         </Container>
@@ -125,7 +137,7 @@ export const Home = ({ data, projects }) => {
                 title={title}
                 excerpt={excerpt}
                 image={coverImage}
-                key={`${slug}-${crypto.randomUUID()}`}
+                key={slug}
               />
             );
           })}
@@ -140,7 +152,7 @@ export const Home = ({ data, projects }) => {
           >
             {data.slice(0, 3)?.map(({ slug, title, excerpt, coverImage }) => {
               return (
-                <SplideSlide key={`${slug}-${crypto.randomUUID()}`}>
+                <SplideSlide key={slug}>
                   <ArticleCard
                     slug={slug}
                     title={title}
@@ -174,4 +186,5 @@ Home.propTypes = {
       coverImage: propTypes.string.isRequired,
     })
   ),
+  activeProjects: propTypes.arrayOf(propTypes.object).isRequired,
 };
